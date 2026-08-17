@@ -119,9 +119,12 @@ export const getRandomValidPlacement = (board: Board, size: number): Position[] 
   throw new Error('Could not find valid placement');
 };
 
-export const placeAllShipsRandomly = (board: Board): Board => {
-  let newBoard: Board = { ...board, cells: board.cells.map(row => [...row]), ships: [] };
-  
+// Always builds a complete fleet on a fresh grid. It deliberately takes no
+// board: carrying cells over from an existing one while resetting `ships` to []
+// stranded already-placed hulls on the grid as cells with no owning ship.
+export const placeAllShipsRandomly = (): Board => {
+  let newBoard: Board = createEmptyBoard();
+
   for (const config of SHIP_CONFIGS) {
     const positions = getRandomValidPlacement(newBoard, config.size);
     const ship = createShip(config, positions);

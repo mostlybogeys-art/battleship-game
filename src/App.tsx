@@ -90,7 +90,7 @@ function App() {
 
   // Randomize fleet placement
   const randomizeFleet = () => {
-    const newBoard = placeAllShipsRandomly(gameState.playerBoard);
+    const newBoard = placeAllShipsRandomly();
     setGameState(prev => ({
       ...prev,
       playerBoard: newBoard,
@@ -103,7 +103,7 @@ function App() {
     if (gameState.playerBoard.ships.length !== 5) return;
 
     // Place AI ships randomly
-    const aiBoard = placeAllShipsRandomly(createEmptyBoard());
+    const aiBoard = placeAllShipsRandomly();
     
     setGameState(prev => ({
       ...prev,
