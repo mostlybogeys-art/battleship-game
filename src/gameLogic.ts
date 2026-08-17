@@ -1,0 +1,132 @@
+import { Board, Cell, CellState, Position, Ship, Orientation, SHIP_CONFIGS, BOARD_SIZE } from './types';
+
+export const createEmptyBoard = (): Board => {
+  const cells: Cell[][] = [];
+  for (let row = 0; row < BOARD_SIZE; row++) {
+    cells[row] = [];
+    for (let col = 0; col < BOARD_SIZE; col++) {
+      cells[row][col] = { state: 'empty' };
+    }
+  }
+  return { cells, ships: [] };
+};
+
+export const createShip = (config: typeof SHIP_CONFIGS[0], positions: Position[]): Ship => {
+  return {
+    id: config.id,
+    name: config.name,
+    size: config.size,
+    positions,
+    hits: 0,
+    isSunk: false,
+  };
+};
+
+export const isValidPlacement = (
+  board: Board,
+  positions: Position[]
+): boolean => {
+  for (const pos of positions) {
+    // Check bounds
+    if (pos.row < 0 || pos.row >= BOARD_SIZE || pos.col < 0 || pos.col >= BOARD_SIZE) {
+      return false;
+    }
+    // Check for existing ships
+    if (board.cells[pos.row][pos.col].state === 'ship') {
+      return false;
+    }
+  }
+  return true;
+};
+
+export const getShipPositions = (
+  startRow: number,
+  startCol: number,
+  size: number,
+  orientation: Orientation
+): Position[] => {
+  const positions: Position[] = [];
+  for (let i = 0; i < size; i++) {
+    if (orientation === 'horizontal') {
+      positions.push({ row: startRow, col: startCol + i });
+    } else {
+      positions.push({ row: startRow + i, col: startCol });
+    }
+  }
+  return positions;
+};
+
+export const placeShipOnBoard = (board: Board, ship: Ship): Board => {
+  const newBoard = { ...board, cells: board.cells.map(row => [...row]), ships: [...board.ships] };
+  
+  for (const pos of ship.positions) {
+    newBoard.cells[pos.row][pos.col] = { state: 'ship', shipId: ship.id };
+  }
+  
+  newBoard.ships.push(ship);
+  return newBoard;
+};
+
+export const isValidAttack = (board: Board, row: number, col: number): boolean => {
+  if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
+    return false;
+  }
+  const cell = board.cells[row][col];
+  return cell.state !== 'hit' && cell.state !== 'miss';
+};
+
+export const performAttack = (board: Board, row: number, col: number): Board => {
+  const newBoard = { ...board, cells: board.cells.map(row => [...row]), ships: board.ships.map(ship => ({ ...ship })) };
+  const cell = newBoard.cells[row][col];
+  
+  if (cell.state === 'ship' && cell.shipId) {
+    cell.state = 'hit';
+    const ship = newBoard.ships.find(s => s.id === cell.shipId);
+    if (ship) {
+      ship.hits += 1;
+      if (ship.hits >= ship.size) {
+        ship.isSunk = true;
+      }
+    }
+  } else {
+    cell.state = 'miss';
+  }
+  
+  return newBoard;
+};
+
+export const areAllShipsSunk = (board: Board): boolean => {
+  return board.ships.every(ship => ship.isSunk);
+};
+
+export const getRandomValidPlacement = (board: Board, size: number): Position[] => {
+  let attempts = 0;
+  const maxAttempts = 1000;
+  
+  while (attempts < maxAttempts) {
+    const orientation: Orientation = Math.random() > 0.5 ? 'horizontal' : 'vertical';
+    const startRow = Math.floor(Math.random() * BOARD_SIZE);
+    const startCol = Math.floor(Math.random() * BOARD_SIZE);
+    
+    const positions = getShipPositions(startRow, startCol, size, orientation);
+    
+    if (isValidPlacement(board, positions)) {
+      return positions;
+    }
+    attempts++;
+  }
+  
+  throw new Error('Could not find valid placement');
+};
+
+export const placeAllShipsRandomly = (board: Board): Board => {
+  let newBoard = { ...board, cells: board.cells.map(row => [...row]), ships: [] };
+  
+  for (const config of SHIP_CONFIGS) {
+    const positions = getRandomValidPlacement(newBoard, config.size);
+    const ship = createShip(config, positions);
+    newBoard = placeShipOnBoard(newBoard, ship);
+  }
+  
+  return newBoard;
+};
