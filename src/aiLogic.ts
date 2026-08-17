@@ -84,8 +84,20 @@ export const getRandomValidShot = (_board: Board, previousShots: Set<string>): P
 
 export const aiTakeTurn = (board: Board, aiState: AIState): { newBoard: Board; newAIState: AIState } => {
   let targetPosition: Position;
-  let newAIState = { ...aiState, previousShots: new Set(aiState.previousShots) };
-  
+  // targetQueue is shifted below, so it must be a fresh array — spreading
+  // aiState alone would leave it aliased to the previous state's queue.
+  let newAIState = {
+    ...aiState,
+    previousShots: new Set(aiState.previousShots),
+    targetQueue: [...aiState.targetQueue],
+  };
+
+  // Queue entries are filtered when enqueued, but a later shot can land on one
+  // before it is popped. Drop anything already fired at.
+  newAIState.targetQueue = newAIState.targetQueue.filter(
+    pos => !newAIState.previousShots.has(positionToString(pos))
+  );
+
   if (newAIState.mode === 'hunt') {
     // Hunt mode: random valid position
     targetPosition = getRandomValidShot(board, newAIState.previousShots);

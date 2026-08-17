@@ -5,5 +5,7 @@
 body {
   margin: 0;
   padding: 0;
-  background-color: #f0f9ff;
+  /* steel-950 — matches the app gradient so overscroll doesn't flash white */
+  background-color: #061011;
+  color-scheme: dark;
 }

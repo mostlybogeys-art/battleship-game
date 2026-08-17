@@ -23,7 +23,6 @@ import {
 import captainImg from './assets/captain.jpg';
 
 function App() {
-  console.log('App component rendered');
   const [gameState, setGameState] = useState<GameState>(() => ({
     phase: 'setup',
     playerBoard: createEmptyBoard(),
@@ -146,7 +145,7 @@ function App() {
       const thinkingTime = Math.random() * 1000 + 500; // 500-1500ms
       
       setTimeout(() => {
-        const { newBoard, newAIState: newAIState } = aiTakeTurn(gameState.playerBoard, aiState);
+        const { newBoard, newAIState } = aiTakeTurn(gameState.playerBoard, aiState);
         
         setGameState(prev => ({
           ...prev,
@@ -172,10 +171,12 @@ function App() {
   const allShipsPlaced = gameState.playerBoard.ships.length === 5;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-blue-100 py-8 px-4">
+    <div className="min-h-screen bg-gradient-to-b from-steel-950 via-steel-900 to-steel-950 py-8 px-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 text-gray-800">⚓ Battleship</h1>
-        
+        <h1 className="text-4xl font-bold text-center mb-8 text-steel-50 tracking-wide">
+          <span className="text-brass-400">⚓</span> Battleship
+        </h1>
+
         {gameState.phase === 'setup' && (
           <div className="space-y-6">
             {/* Captain hero banner */}
@@ -208,19 +209,21 @@ function App() {
               />
 
               {/* Controls */}
-              <div className="bg-white p-4 rounded-lg shadow-md space-y-4">
-                <h3 className="text-lg font-semibold text-gray-800">Controls</h3>
-                
+              <div className="bg-steel-900/90 border border-steel-700 p-4 rounded-lg shadow-xl space-y-4">
+                <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-brass-300">
+                  Controls
+                </h3>
+
                 <button
                   onClick={toggleOrientation}
-                  className="w-full px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-md transition-colors text-gray-800"
+                  className="w-full px-4 py-2 bg-steel-800 border border-steel-700 hover:bg-steel-700 hover:border-steel-600 rounded-md transition-colors text-steel-100"
                 >
                   Orientation: {gameState.shipOrientation.toUpperCase()}
                 </button>
 
                 <button
                   onClick={randomizeFleet}
-                  className="w-full px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-md transition-colors"
+                  className="w-full px-4 py-2 bg-steel-700 border border-steel-600 hover:bg-steel-600 hover:border-steel-500 text-steel-50 rounded-md transition-colors"
                 >
                   🎲 Randomize Fleet
                 </button>
@@ -228,7 +231,7 @@ function App() {
                 {allShipsPlaced && (
                   <button
                     onClick={startGame}
-                    className="w-full px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md transition-colors font-semibold"
+                    className="w-full px-4 py-2 bg-brass-500 hover:bg-brass-400 text-steel-950 rounded-md transition-colors font-semibold shadow-lg shadow-brass-500/20"
                   >
                     🚀 Start Game
                   </button>
@@ -253,10 +256,10 @@ function App() {
           <div className="space-y-6">
             {/* Status Indicator */}
             <div className="text-center">
-              <div className={`inline-block px-6 py-3 rounded-full text-lg font-semibold ${
-                gameState.currentTurn === 'player' 
-                  ? 'bg-green-100 text-green-800' 
-                  : 'bg-yellow-100 text-yellow-800'
+              <div className={`inline-block px-6 py-3 rounded-full text-lg font-semibold border ${
+                gameState.currentTurn === 'player'
+                  ? 'bg-brass-500/15 border-brass-500/50 text-brass-300'
+                  : 'bg-steel-800/80 border-steel-600 text-steel-300 animate-pulse'
               }`}>
                 {gameState.currentTurn === 'player' ? '🎯 Your Turn' : '🤖 AI is thinking...'}
               </div>
@@ -282,45 +285,46 @@ function App() {
 
             {/* Ship Status */}
             <div className="flex justify-center gap-8">
-              <div className="bg-white p-4 rounded-lg shadow-md">
-                <h3 className="font-semibold text-gray-800 mb-2">Your Ships</h3>
-                <div className="space-y-1">
-                  {gameState.playerBoard.ships.map(ship => (
-                    <div key={ship.id} className={`text-sm ${ship.isSunk ? 'text-red-500 line-through' : 'text-gray-700'}`}>
-                      {ship.name} {ship.isSunk ? '(Sunk)' : `(${ship.hits}/${ship.size})`}
-                    </div>
-                  ))}
+              {[
+                { title: 'Your Fleet', ships: gameState.playerBoard.ships },
+                { title: 'Enemy Fleet', ships: gameState.aiBoard.ships },
+              ].map(({ title, ships }) => (
+                <div key={title} className="bg-steel-900/90 border border-steel-700 p-4 rounded-lg shadow-xl min-w-[11rem]">
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-brass-300 mb-2">
+                    {title}
+                  </h3>
+                  <div className="space-y-1">
+                    {ships.map(ship => (
+                      <div
+                        key={ship.id}
+                        className={`text-sm ${ship.isSunk ? 'text-ember-500 line-through' : 'text-steel-200'}`}
+                      >
+                        {ship.name} {ship.isSunk ? '(Sunk)' : `(${ship.hits}/${ship.size})`}
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
-
-              <div className="bg-white p-4 rounded-lg shadow-md">
-                <h3 className="font-semibold text-gray-800 mb-2">AI Ships</h3>
-                <div className="space-y-1">
-                  {gameState.aiBoard.ships.map(ship => (
-                    <div key={ship.id} className={`text-sm ${ship.isSunk ? 'text-red-500 line-through' : 'text-gray-700'}`}>
-                      {ship.name} {ship.isSunk ? '(Sunk)' : `(${ship.hits}/${ship.size})`}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              ))}
             </div>
           </div>
         )}
 
         {gameState.phase === 'gameover' && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-8 rounded-lg shadow-2xl max-w-md w-full mx-4 text-center">
-              <h2 className="text-3xl font-bold mb-4">
+          <div className="fixed inset-0 bg-steel-950/80 backdrop-blur-sm flex items-center justify-center z-50 px-4">
+            <div className="bg-steel-900 border border-steel-700 p-8 rounded-xl shadow-2xl max-w-md w-full text-center">
+              <h2 className={`text-3xl font-bold mb-4 ${
+                gameState.winner === 'player' ? 'text-brass-400' : 'text-ember-500'
+              }`}>
                 {gameState.winner === 'player' ? '🎉 You Win!' : '🤖 AI Wins!'}
               </h2>
-              <p className="text-gray-600 mb-6">
-                {gameState.winner === 'player' 
-                  ? 'Congratulations! You sunk all AI ships!' 
+              <p className="text-steel-300 mb-6">
+                {gameState.winner === 'player'
+                  ? 'Congratulations! You sunk all AI ships!'
                   : 'The AI sunk all your ships. Better luck next time!'}
               </p>
               <button
                 onClick={resetGame}
-                className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors font-semibold"
+                className="px-6 py-3 bg-brass-500 hover:bg-brass-400 text-steel-950 rounded-lg transition-colors font-semibold shadow-lg shadow-brass-500/20"
               >
                 Play Again
               </button>
