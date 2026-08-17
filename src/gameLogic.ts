@@ -1,4 +1,4 @@
-import { Board, Cell, Position, Ship, SHIP_CONFIGS, BOARD_SIZE } from './types';
+import { Board, Cell, Position, Ship, Orientation, SHIP_CONFIGS, BOARD_SIZE } from './types';
 
 export const createEmptyBoard = (): Board => {
   const cells: Cell[][] = [];
@@ -120,7 +120,7 @@ export const getRandomValidPlacement = (board: Board, size: number): Position[] 
 };
 
 export const placeAllShipsRandomly = (board: Board): Board => {
-  let newBoard = { ...board, cells: board.cells.map(row => [...row]), ships: [] };
+  let newBoard: Board = { ...board, cells: board.cells.map(row => [...row]), ships: [] };
   
   for (const config of SHIP_CONFIGS) {
     const positions = getRandomValidPlacement(newBoard, config.size);
