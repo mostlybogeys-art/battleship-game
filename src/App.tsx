@@ -16,10 +16,11 @@ import {
   areAllShipsSunk,
   placeAllShipsRandomly 
 } from './gameLogic';
-import { 
-  createInitialAIState, 
-  aiTakeTurn 
+import {
+  createInitialAIState,
+  aiTakeTurn
 } from './aiLogic';
+import captainImg from './assets/captain.jpg';
 
 function App() {
   console.log('App component rendered');
@@ -177,9 +178,25 @@ function App() {
         
         {gameState.phase === 'setup' && (
           <div className="space-y-6">
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-semibold text-gray-700 mb-2">Setup Phase</h2>
-              <p className="text-gray-600">Place your ships on the board to begin the game</p>
+            {/* Captain hero banner */}
+            <div className="relative overflow-hidden rounded-xl shadow-2xl mb-6 h-56 sm:h-72 lg:h-96">
+              <img
+                src={captainImg}
+                alt="The captain on the bridge wing of his battleship, guns firing amid a running sea battle"
+                className="absolute inset-0 w-full h-full object-cover object-[center_15%]"
+              />
+              <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/50 to-transparent" />
+              <div className="relative h-full flex flex-col justify-end p-6 sm:p-8 max-w-lg">
+                <p className="text-amber-300 text-xs sm:text-sm font-semibold tracking-[0.2em] uppercase mb-1">
+                  Captain on deck
+                </p>
+                <h2 className="text-2xl sm:text-3xl font-bold text-white mb-2 drop-shadow-lg">
+                  Setup Phase
+                </h2>
+                <p className="text-slate-200 text-sm sm:text-base drop-shadow">
+                  "Place your fleet, sailor. The enemy is already at range."
+                </p>
+              </div>
             </div>
 
             <div className="flex flex-col lg:flex-row gap-6 justify-center items-start">
