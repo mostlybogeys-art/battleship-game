@@ -54,7 +54,7 @@ export const Board: React.FC<BoardProps> = ({
             </div>
             
             {/* Cells */}
-            {row.map((cell, colIndex) => (
+            {row.map((_cell, colIndex) => (
               <Cell
                 key={`${rowIndex}-${colIndex}`}
                 state={getCellState(rowIndex, colIndex)}

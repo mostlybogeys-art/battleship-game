@@ -1,11 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Board } from './components/Board';
 import { ShipSelector } from './components/ShipSelector';
 import { 
   GameState, 
-  Position, 
-  Orientation, 
-  SHIP_CONFIGS, 
   Ship 
 } from './types';
 import { 
@@ -37,7 +34,7 @@ function App() {
   }));
 
   const [aiState, setAIState] = useState(createInitialAIState());
-  const [previewPositions, setPreviewPositions] = useState<Position[]>([]);
+
   const [isAIThinking, setIsAIThinking] = useState(false);
 
   // Reset game
@@ -52,14 +49,12 @@ function App() {
       winner: null,
     });
     setAIState(createInitialAIState());
-    setPreviewPositions([]);
     setIsAIThinking(false);
   };
 
   // Handle ship selection in setup phase
   const handleShipSelect = (ship: Ship) => {
     setGameState(prev => ({ ...prev, selectedShip: ship }));
-    setPreviewPositions([]);
   };
 
   // Toggle ship orientation
@@ -68,7 +63,6 @@ function App() {
       ...prev, 
       shipOrientation: prev.shipOrientation === 'horizontal' ? 'vertical' : 'horizontal' 
     }));
-    setPreviewPositions([]);
   };
 
   // Handle cell click in setup phase
@@ -91,22 +85,7 @@ function App() {
         playerBoard: newBoard,
         selectedShip: null,
       }));
-      setPreviewPositions([]);
     }
-  };
-
-  // Handle cell hover in setup phase for preview
-  const handleSetupCellHover = (row: number, col: number) => {
-    if (!gameState.selectedShip) return;
-
-    const positions = getShipPositions(
-      row, 
-      col, 
-      gameState.selectedShip.size, 
-      gameState.shipOrientation
-    );
-
-    setPreviewPositions(isValidPlacement(gameState.playerBoard, positions) ? positions : []);
   };
 
   // Randomize fleet placement
@@ -117,7 +96,6 @@ function App() {
       playerBoard: newBoard,
       selectedShip: null,
     }));
-    setPreviewPositions([]);
   };
 
   // Start game (transition to combat phase)

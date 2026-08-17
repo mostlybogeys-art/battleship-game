@@ -1,4 +1,4 @@
-import { Board, Cell, CellState, Position, Ship, Orientation, SHIP_CONFIGS, BOARD_SIZE } from './types';
+import { Board, Cell, Position, Ship, SHIP_CONFIGS, BOARD_SIZE } from './types';
 
 export const createEmptyBoard = (): Board => {
   const cells: Cell[][] = [];

@@ -63,7 +63,7 @@ export const getDirectionalPosition = (pos: Position, direction: 'north' | 'sout
   }
 };
 
-export const getRandomValidShot = (board: Board, previousShots: Set<string>): Position => {
+export const getRandomValidShot = (_board: Board, previousShots: Set<string>): Position => {
   const availablePositions: Position[] = [];
   
   for (let row = 0; row < BOARD_SIZE; row++) {
