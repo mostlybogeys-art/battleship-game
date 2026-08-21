@@ -18,11 +18,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
+      # Action majors are held at the versions that run on node24. The previous
+      # v4/v3 pins targeted node20, which the runner now force-upgrades while
+      # emitting a deprecation warning on every run.
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
           cache: 'npm'
@@ -41,8 +44,10 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Composite action; v5 is the first major whose internal upload-artifact
+      # dependency is itself on node24.
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: ./dist
 
@@ -55,4 +60,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
