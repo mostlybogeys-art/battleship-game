@@ -19,7 +19,12 @@
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+    "resolveJsonModule": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Tests are checked by tsconfig.test.json, which grants them node types.
+  // Keeping them out here stops application code from reaching for node APIs
+  // that do not exist in the browser.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
