@@ -25,6 +25,7 @@ import {
   aiTakeTurn
 } from './aiLogic';
 import { soundManager } from './sound';
+import { musicEngine } from './music';
 import captainImg from './assets/captain.jpg';
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
@@ -69,6 +70,7 @@ function App() {
   const [lastAIShot, setLastAIShot] = useState<Position | null>(null);
   const [boardShake, setBoardShake] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [musicEnabled, setMusicEnabled] = useState(true);
   const [sunkShipName, setSunkShipName] = useState<string | null>(null);
   const [hoverCell, setHoverCell] = useState<Position | null>(null);
 
@@ -76,6 +78,25 @@ function App() {
     setSfxEnabled(enabled);
     soundManager.setEnabled(enabled);
   };
+
+  const toggleMusic = () => {
+    setMusicEnabled(prev => !prev);
+    soundManager.playClick();
+  };
+
+  // The score plays only during combat. Starting it here rather than on mount
+  // matters: the AudioContext is suspended until the page sees a gesture, and
+  // reaching combat always requires a click.
+  useEffect(() => {
+    if (gameState.phase === 'combat' && musicEnabled) {
+      musicEngine.start();
+    } else {
+      musicEngine.stop();
+    }
+  }, [gameState.phase, musicEnabled]);
+
+  // Belt and braces: kill the scheduler if the component ever unmounts.
+  useEffect(() => () => musicEngine.stop(), []);
 
   // Reset game
   const resetGame = () => {
@@ -330,6 +351,7 @@ function App() {
           <button
             onClick={() => setSound(!sfxEnabled)}
             aria-label={sfxEnabled ? 'Mute sound effects' : 'Unmute sound effects'}
+            title={sfxEnabled ? 'Mute sound effects' : 'Unmute sound effects'}
             className={`px-3 py-1 rounded-full text-sm border transition-colors ${
               sfxEnabled
                 ? 'bg-brass-500/15 border-brass-500/50 text-brass-300'
@@ -337,6 +359,18 @@ function App() {
             }`}
           >
             {sfxEnabled ? '🔊' : '🔇'}
+          </button>
+          <button
+            onClick={toggleMusic}
+            aria-label={musicEnabled ? 'Turn off music' : 'Turn on music'}
+            title={musicEnabled ? 'Turn off music' : 'Turn on music'}
+            className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+              musicEnabled
+                ? 'bg-brass-500/15 border-brass-500/50 text-brass-300'
+                : 'bg-steel-800 border-steel-700 text-steel-400'
+            }`}
+          >
+            <span className={musicEnabled ? '' : 'line-through decoration-2'}>♫</span>
           </button>
         </div>
 

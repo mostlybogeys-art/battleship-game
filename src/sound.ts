@@ -1,26 +1,11 @@
-// Simple sound effects using Web Audio API
-// No external files needed
-
-const createNoiseBuffer = (ctx: AudioContext, duration: number): AudioBuffer => {
-  const sampleRate = ctx.sampleRate;
-  const length = sampleRate * duration;
-  const buffer = ctx.createBuffer(1, length, sampleRate);
-  const data = buffer.getChannelData(0);
-  for (let i = 0; i < length; i++) {
-    data[i] = Math.random() * 2 - 1;
-  }
-  return buffer;
-};
+// Sound effects synthesized with the Web Audio API — no audio files shipped.
+import { getAudioContext, resumeAudio, createNoiseBuffer } from './audio';
 
 class SoundManager {
-  private ctx: AudioContext | null = null;
   private enabled = true;
 
   get context() {
-    if (!this.ctx) {
-      this.ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
-    }
-    return this.ctx;
+    return getAudioContext();
   }
 
   setEnabled(enabled: boolean) {
@@ -32,9 +17,7 @@ class SoundManager {
   }
 
   private resume() {
-    if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume();
-    }
+    resumeAudio();
   }
 
   playTone(frequency: number, duration: number, type: OscillatorType = 'sine', volume = 0.3) {
@@ -61,7 +44,7 @@ class SoundManager {
 
     // Explosion body (low rumble)
     const noise = ctx.createBufferSource();
-    noise.buffer = createNoiseBuffer(ctx, 0.4);
+    noise.buffer = createNoiseBuffer(0.4);
     const noiseGain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
@@ -95,7 +78,7 @@ class SoundManager {
 
     // Water splash noise
     const noise = ctx.createBufferSource();
-    noise.buffer = createNoiseBuffer(ctx, 0.25);
+    noise.buffer = createNoiseBuffer(0.25);
     const noiseGain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
     filter.type = 'highpass';
@@ -119,7 +102,7 @@ class SoundManager {
 
     // Big explosion
     const noise = ctx.createBufferSource();
-    noise.buffer = createNoiseBuffer(ctx, 0.8);
+    noise.buffer = createNoiseBuffer(0.8);
     const noiseGain = ctx.createGain();
     const filter = ctx.createBiquadFilter();
     filter.type = 'lowpass';
