@@ -209,19 +209,29 @@ export const aiTakeTurn = (
         } else {
           // Continuing to target
           newAIState.lastHit = targetPosition;
-          
-          // If this is the second hit in a direction, keep going
-          if (newAIState.currentDirection) {
-            const nextPos = getDirectionalPosition(targetPosition, newAIState.currentDirection);
-            if (nextPos && !newAIState.previousShots.has(positionToString(nextPos))) {
-              newAIState.targetQueue = [nextPos];
-            } else {
-              // Try other directions
-              const adjacent = getAdjacentPositions(targetPosition);
-              const validAdjacent = adjacent.filter(pos => 
-                !newAIState.previousShots.has(positionToString(pos))
-              );
-              newAIState.targetQueue = validAdjacent;
+
+          const unshotNeighbours = () =>
+            getAdjacentPositions(targetPosition).filter(
+              pos => !newAIState.previousShots.has(positionToString(pos))
+            );
+
+          // Prefer pressing on along the axis already established, since two
+          // hits in a line reveal the ship's orientation.
+          const nextPos = newAIState.currentDirection
+            ? getDirectionalPosition(targetPosition, newAIState.currentDirection)
+            : null;
+
+          if (nextPos && !newAIState.previousShots.has(positionToString(nextPos))) {
+            newAIState.targetQueue = [nextPos];
+          } else {
+            // Either the axis is exhausted or no axis was established yet. Fall
+            // back to the neighbours of this hit. This branch must not be gated
+            // on currentDirection: a wounded ship with no queued follow-up would
+            // be abandoned, and the AI would forget it had found anything.
+            const validAdjacent = unshotNeighbours();
+            newAIState.targetQueue = validAdjacent;
+            if (validAdjacent.length > 0) {
+              newAIState.currentDirection = getDirectionFromPositions(targetPosition, validAdjacent[0]);
             }
           }
         }
