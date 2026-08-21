@@ -20,6 +20,12 @@ const FADE_IN_S = 3.0;
 const FADE_OUT_S = 1.6;
 const MUSIC_LEVEL = 0.32;
 
+// How far the score drops under a spoken callout, and how quickly. A choir pad
+// sitting at full level makes synthesized speech very hard to make out.
+const DUCK_LEVEL = 0.09;
+const DUCK_S = 0.18;
+const UNDUCK_S = 0.5;
+
 export interface Bar {
   /** Bass/organ pedal note. */
   bass: string;
@@ -88,6 +94,23 @@ class MusicEngine {
 
   isPlaying() {
     return this.playing;
+  }
+
+  /**
+   * Pull the score down under spoken dialogue and let it back up afterwards.
+   * A no-op while stopped, so an in-flight callout cannot resurrect the music
+   * by un-ducking it after the player has muted or the game has ended.
+   */
+  duck(active: boolean) {
+    if (!this.playing) return;
+    const ctx = getAudioContext();
+    const gain = this.getMaster().gain;
+    const target = active ? DUCK_LEVEL : MUSIC_LEVEL;
+    const seconds = active ? DUCK_S : UNDUCK_S;
+
+    gain.cancelScheduledValues(ctx.currentTime);
+    gain.setValueAtTime(gain.value, ctx.currentTime);
+    gain.linearRampToValueAtTime(target, ctx.currentTime + seconds);
   }
 
   start() {

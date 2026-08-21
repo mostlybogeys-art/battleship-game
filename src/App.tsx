@@ -26,6 +26,7 @@ import {
 } from './aiLogic';
 import { soundManager } from './sound';
 import { musicEngine } from './music';
+import { voiceManager } from './voice';
 import captainImg from './assets/captain.jpg';
 
 const DIFFICULTY_LABELS: Record<Difficulty, string> = {
@@ -71,8 +72,10 @@ function App() {
   const [boardShake, setBoardShake] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [musicEnabled, setMusicEnabled] = useState(true);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [sunkShipName, setSunkShipName] = useState<string | null>(null);
   const [hoverCell, setHoverCell] = useState<Position | null>(null);
+  const [callout, setCallout] = useState<string | null>(null);
 
   const setSound = (enabled: boolean) => {
     setSfxEnabled(enabled);
@@ -83,6 +86,26 @@ function App() {
     setMusicEnabled(prev => !prev);
     soundManager.playClick();
   };
+
+  const toggleVoice = () => {
+    setVoiceEnabled(prev => {
+      voiceManager.setEnabled(!prev);
+      return !prev;
+    });
+    soundManager.playClick();
+  };
+
+  // Let spoken lines duck the score so they stay intelligible over the choir.
+  useEffect(() => {
+    voiceManager.onSpeaking(active => musicEngine.duck(active));
+  }, []);
+
+  // Decode the callouts when combat starts, so the first hit does not wait on a
+  // fetch. Deliberately not on mount: decodeAudioData needs the AudioContext,
+  // which stays suspended until the page has seen a gesture.
+  useEffect(() => {
+    if (gameState.phase === 'combat') void voiceManager.preload();
+  }, [gameState.phase]);
 
   // The score plays only during combat. Starting it here rather than on mount
   // matters: the AudioContext is suspended until the page sees a gesture, and
@@ -95,8 +118,11 @@ function App() {
     }
   }, [gameState.phase, musicEnabled]);
 
-  // Belt and braces: kill the scheduler if the component ever unmounts.
-  useEffect(() => () => musicEngine.stop(), []);
+  // Belt and braces: kill the scheduler and silence any line still being read.
+  useEffect(() => () => {
+    musicEngine.stop();
+    voiceManager.cancel();
+  }, []);
 
   // Reset game
   const resetGame = () => {
@@ -117,6 +143,8 @@ function App() {
     setLastAIShot(null);
     setBoardShake(false);
     setSunkShipName(null);
+    setCallout(null);
+    voiceManager.reset();
     soundManager.playClick();
   };
 
@@ -246,14 +274,18 @@ function App() {
     const { board: newAIBoard, hit, sunkShip } = performAttack(gameState.aiBoard, row, col);
 
     setSunkShipName(sunkShip);
+
+    const playerWon = areAllShipsSunk(newAIBoard);
+
     if (hit) {
       soundManager.playHit();
       if (sunkShip) soundManager.playSunk();
+      // Suppress the callout on the killing blow — the victory sting and the
+      // game-over modal should not compete with the officer still talking.
+      if (!playerWon) setCallout(voiceManager.speakHitCallout());
     } else {
       soundManager.playMiss();
     }
-    
-    const playerWon = areAllShipsSunk(newAIBoard);
 
     setGameState(prev => ({
       ...prev,
@@ -263,7 +295,10 @@ function App() {
       winner: playerWon ? 'player' : prev.winner,
     }));
 
-    if (playerWon) soundManager.playWin();
+    if (playerWon) {
+      voiceManager.cancel();
+      soundManager.playWin();
+    }
   };
 
   // AI turn effect
@@ -273,6 +308,7 @@ function App() {
 
     aiTurnScheduled.current = true;
     setSunkShipName(null);
+    setCallout(null);
 
     const thinkingTime = AI_THINK_MIN_MS + Math.random() * AI_THINK_JITTER_MS;
 
@@ -371,6 +407,18 @@ function App() {
             }`}
           >
             <span className={musicEnabled ? '' : 'line-through decoration-2'}>♫</span>
+          </button>
+          <button
+            onClick={toggleVoice}
+            aria-label={voiceEnabled ? 'Turn off spoken callouts' : 'Turn on spoken callouts'}
+            title={voiceEnabled ? 'Turn off spoken callouts' : 'Turn on spoken callouts'}
+            className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+              voiceEnabled
+                ? 'bg-brass-500/15 border-brass-500/50 text-brass-300'
+                : 'bg-steel-800 border-steel-700 text-steel-400'
+            }`}
+          >
+            <span className={voiceEnabled ? '' : 'line-through decoration-2'}>🎙</span>
           </button>
         </div>
 
@@ -508,6 +556,17 @@ function App() {
                 <div className="inline-block px-6 py-2 bg-ember-600/20 border border-ember-500/50 text-ember-300 rounded-full animate-pop font-semibold">
                   💥 {sunkShipName} sunk!
                 </div>
+              </div>
+            )}
+
+            {/* Subtitle for the spoken callout. Also carries the line on
+                platforms with no speech engine, and for anyone playing muted. */}
+            {callout && (
+              <div className="text-center" aria-live="polite">
+                <p className="inline-block max-w-xl px-5 py-2 bg-steel-900/80 border border-steel-700 rounded-lg text-steel-200 italic animate-pop">
+                  <span className="text-brass-400 not-italic mr-2">🎙</span>
+                  &ldquo;{callout}&rdquo;
+                </p>
               </div>
             )}
 

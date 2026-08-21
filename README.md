@@ -10,6 +10,7 @@ A fully functional, web-based Battleship game built with React, TypeScript, Vite
 - **Three Difficulty Levels**: Easy, Medium, and Hard, each with a distinct firing strategy
 - **Sound Effects**: Explosions, splashes, and win/loss stings, synthesized in-browser with no audio files
 - **Original Score**: Procedural minor-key naval hymn for choir, brass and timpani, generated at runtime
+- **Spoken Callouts**: Six hit confirmations delivered over a simulated shipboard intercom, with subtitles
 - **Animations**: Explosion and splash effects on the last shot, plus screen shake when you take a hit
 - **Responsive Design**: Works on desktop and mobile devices
 - **Visual Feedback**: Distinct colors and icons for different game states
@@ -188,6 +189,60 @@ create.
 - **Ship sunk**: longer, louder explosion with a descending siren
 - **Win / Lose**: ascending major arpeggio / descending minor run
 
+### Spoken callouts (`src/voice.ts`)
+
+Landing a hit triggers one of six spoken lines, never repeating the previous one.
+The score ducks underneath so the line stays intelligible, and a subtitle is shown
+alongside it.
+
+Unlike the effects and music, these are **pre-rendered audio files** rather than
+being generated at runtime (`src/assets/voice/`, ~160KB for six lines). Two
+reasons, both of which rule out the browser's built-in `SpeechSynthesis`:
+
+1. Its output cannot be routed into an `AudioContext`, so it can never be
+   processed.
+2. It uses whatever voice the operating system happens to ship, so no two players
+   hear the same reading.
+
+The source is a synthetic voice and sounds like one unprocessed. It is played
+through a shipboard-intercom chain, which is only possible because it is real
+audio now:
+
+| Stage | Purpose |
+|---|---|
+| Band-limit 260Hz–3.4kHz | The most important step. Synthesis artifacts sit largely in the frequencies a comms speaker cannot reproduce, so removing them removes the tells. |
+| +5dB peak at 1.9kHz | Restores consonant intelligibility after the extremes are gone. |
+| 0.94× playback rate | Lowers pitch for weight. Below ~0.9 the formants smear. |
+| Soft-clip saturation | Odd harmonics, heard as an overdriven speaker. This is where the grit comes from. |
+| 10:1 compression | Real intercoms squash hard; imitating that sells it. |
+| Short convolution reverb | A small steel compartment, from a procedurally generated impulse. |
+| Faint band-passed hiss | Barely audible on its own; its absence is what sounds artificial. |
+
+The aim is not to pass the voice off as a person in a studio, but as a person
+heard over the boat's speakers — achievable, and closer to the intended
+reference.
+
+#### Re-rendering the lines
+
+`src/assets/voice/callouts.json` is the single source of truth for the text.
+After editing it, re-run:
+
+```bash
+./scripts/render-voice.sh
+```
+
+This uses the macOS `say` command, and automatically prefers "Daniel (Enhanced)"
+when that voice has been downloaded (System Settings → Accessibility → Spoken
+Content → Manage Voices), which sounds considerably better than the compact
+default.
+
+For a genuinely human voice, swap the renderer for a neural TTS API — there is a
+worked OpenAI example commented at the bottom of the script. Only that script
+changes; `voice.ts` loads whatever files are present.
+
+Tests assert that the text and the rendered audio stay in step, since editing one
+without the other would have players hearing one line while reading another.
+
 ### Music (`src/music.ts`)
 
 An original procedural score in the vein of a Cold War submarine picture — a slow
@@ -218,7 +273,9 @@ Two details worth knowing before editing it:
   gesture, so this satisfies autoplay policy without a separate "enable audio"
   prompt.
 
-Effects and music have independent toggles (🔊 and ♫) next to the title.
+Effects, music and spoken callouts have independent toggles (🔊, ♫ and 🎙) next
+to the title. Callouts get their own switch because speech is far more divisive
+than explosions are.
 
 ### Animations
 
@@ -247,10 +304,15 @@ battleship-game/
 │   ├── sound.ts               # Web Audio API sound effects
 │   ├── music.ts               # Procedural background score
 │   ├── music.test.ts          # Note parser + score integrity
+│   ├── voice.ts               # Spoken callouts + intercom processing
+│   ├── voice.test.ts          # Callout rotation + audio asset integrity
+│   ├── assets/voice/          # callouts.json (source of truth) + rendered m4a
 │   ├── types.ts               # TypeScript type definitions
 │   ├── App.tsx                # Main application component
 │   ├── main.tsx               # Application entry point
 │   └── index.css              # Tailwind directives + animation keyframes
+├── scripts/
+│   └── render-voice.sh        # Regenerates the spoken lines from callouts.json
 ├── .github/workflows/
 │   └── deploy.yml             # Lint, test, build, deploy to Pages
 ├── public/                    # Static assets

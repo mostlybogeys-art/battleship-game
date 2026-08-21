@@ -1,0 +1,11 @@
+{
+  "_comment": "Single source of truth for the spoken hit callouts. scripts/render-voice.sh reads this to produce hit-<n>.m4a, and voice.ts imports it for the subtitles, so the text and the audio cannot drift apart. Re-run the script after editing.",
+  "hit": [
+    "Direct hit! Keep the pressure on.",
+    "Confirmed strike on the enemy vessel. Excellent marksmanship.",
+    "Solid hit. We've got their coordinates dialed in.",
+    "Target struck. Reload tubes and prepare for a follow-up.",
+    "That's a hit! Don't let up, pour it on them.",
+    "Bullseye. They're taking on water now."
+  ]
+}
