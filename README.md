@@ -17,11 +17,12 @@ A fully functional, web-based Battleship game built with React, TypeScript, Vite
 
 ## 🛠️ Tech Stack
 
-- **React 18**: UI library for building the interface
+- **React 19**: UI library for building the interface
 - **TypeScript**: Type-safe JavaScript for better development experience
 - **Vite**: Fast build tool and development server
 - **Tailwind CSS**: Utility-first CSS framework for styling
-- **Modern JavaScript**: ES6+ features and React hooks
+- **Vitest**: Unit tests for the game rules, AI and score
+- **Web Audio API**: All sound effects and music, synthesized at runtime
 
 ## 🚀 Getting Started
 
@@ -48,7 +49,41 @@ npm install
 npm run dev
 ```
 
-4. Open your browser and navigate to `http://localhost:5173`
+4. Open your browser and navigate to `http://localhost:5173/battleship-game/`
+
+> The dev server is served under `/battleship-game/` because `base` is set for
+> GitHub Pages deployment. The bare root will 404.
+
+### Testing
+
+```bash
+npm test          # run once
+npm run test:watch # re-run on change
+```
+
+[Vitest](https://vitest.dev/) covers the pure logic — game rules, the AI, and the
+score data. None of it needs a DOM, so the suite runs in the node environment and
+finishes in well under a second.
+
+| File | Covers |
+|---|---|
+| `src/gameLogic.test.ts` | Board construction, placement validation, attacks, sinking, random fleet generation |
+| `src/aiLogic.test.ts` | Hunt/target transitions, shot memory, difficulty behaviour, full-game invariants |
+| `src/music.test.ts` | Note parser maths and the harmonic/rhythmic integrity of the score |
+
+Several tests are explicitly regression guards, labelled as such in comments.
+The bugs they pin down were all real:
+
+- **Edge wrap-around** — a ship overflowing the right edge must be rejected, not
+  wrap onto the next row (called out in the original brief).
+- **Shared cell objects** — boards were copied with `[...row]`, which shares the
+  cell objects, so an attack rewrote the previous state in place.
+- **Orphaned hull cells** — removing or re-randomising a fleet used to leave
+  cells marked as ship pointing at a ship that no longer existed.
+- **Aliased AI target queue** — the queue is shifted in place, so a shallow copy
+  let one turn corrupt the state it came from.
+- **Abandoned wounded ships** — the AI's follow-up logic was gated such that a
+  hit could queue no follow-up at all.
 
 ### Building for Production
 
@@ -56,15 +91,24 @@ npm run dev
 npm run build
 ```
 
-The built files will be in the `dist` directory.
+The built files will be in the `dist` directory. Test files are not bundled —
+nothing imports them.
 
 ### Deployment
 
-This project is ready to be deployed to Vercel, Netlify, or any static hosting service:
+Pushing to `main` runs `.github/workflows/deploy.yml`, which lints, tests, builds
+and then publishes to GitHub Pages. **Lint and tests run before the build**, so a
+logic regression fails the workflow instead of shipping.
+
+Live at https://mostlybogeys-art.github.io/battleship-game/
+
+It also deploys cleanly to any static host:
 
 - **Vercel**: Connect your GitHub repository and deploy
 - **Netlify**: Drag and drop the `dist` folder or connect via Git
-- **GitHub Pages**: Use the `dist` folder as the publishing source
+
+Note that `base` in `vite.config.ts` is set to `/battleship-game/` for Pages. If
+you deploy to a domain root instead, set it back to `/`.
 
 ## 🎯 Game Rules
 
@@ -196,20 +240,25 @@ battleship-game/
 │   │   ├── Cell.tsx           # Individual cell component
 │   │   └── ShipSelector.tsx   # Ship selection interface
 │   ├── aiLogic.ts             # AI opponent logic (hunt/target, difficulty)
+│   ├── aiLogic.test.ts        # AI behaviour + full-game invariants
 │   ├── gameLogic.ts           # Core game mechanics
+│   ├── gameLogic.test.ts      # Rules, placement validation, attacks
 │   ├── audio.ts               # Shared AudioContext, noise buffers, note→freq
 │   ├── sound.ts               # Web Audio API sound effects
 │   ├── music.ts               # Procedural background score
+│   ├── music.test.ts          # Note parser + score integrity
 │   ├── types.ts               # TypeScript type definitions
 │   ├── App.tsx                # Main application component
 │   ├── main.tsx               # Application entry point
 │   └── index.css              # Tailwind directives + animation keyframes
+├── .github/workflows/
+│   └── deploy.yml             # Lint, test, build, deploy to Pages
 ├── public/                    # Static assets
 ├── index.html                 # HTML template
 ├── package.json               # Dependencies
 ├── tailwind.config.js         # Tailwind configuration
 ├── tsconfig.json              # TypeScript configuration
-└── vite.config.ts             # Vite configuration
+└── vite.config.ts             # Vite + Vitest configuration
 ```
 
 ## 🎨 UI/UX Features
@@ -278,12 +327,6 @@ Potential features for future versions:
 - Special weapons/power-ups
 - Music that reacts to the state of the game (intensifying as your fleet is lost)
 
-### Known technical debt
-- `noUnusedLocals` / `noUnusedParameters` are currently disabled in
-  `tsconfig.app.json`. They were turned off to get an early build green, and that
-  masked the accidental deletion of live code. Worth re-enabling.
-- There is no test runner. The game logic, AI loop and score have all been
-  validated with throwaway scripts; adding Vitest would make those permanent.
 
 ---
 

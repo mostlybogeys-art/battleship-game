@@ -24,11 +24,19 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      # Runs before the build so a logic regression fails the workflow rather
+      # than shipping to Pages.
+      - name: Test
+        run: npm test
 
       - name: Build
         run: npm run build
