@@ -67,6 +67,24 @@ export const placeShipOnBoard = (board: Board, ship: Ship): Board => {
   return newBoard;
 };
 
+// Lifts a ship back off the grid so the player can re-place it.
+export const removeShipFromBoard = (board: Board, shipId: string): Board => {
+  const ship = board.ships.find(s => s.id === shipId);
+  if (!ship) return board;
+
+  const newBoard = {
+    ...board,
+    cells: board.cells.map(row => [...row]),
+    ships: board.ships.filter(s => s.id !== shipId),
+  };
+
+  for (const pos of ship.positions) {
+    newBoard.cells[pos.row][pos.col] = { state: 'empty' };
+  }
+
+  return newBoard;
+};
+
 export const isValidAttack = (board: Board, row: number, col: number): boolean => {
   if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) {
     return false;

@@ -1,11 +1,12 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Board } from './components/Board';
 import { ShipSelector } from './components/ShipSelector';
 import { 
   GameState, 
   Ship,
   Position,
-  Difficulty
+  Difficulty,
+  SHIP_CONFIGS
 } from './types';
 import { 
   createEmptyBoard, 
@@ -13,6 +14,7 @@ import {
   getShipPositions, 
   isValidPlacement, 
   placeShipOnBoard, 
+  removeShipFromBoard,
   isValidAttack, 
   performAttack, 
   areAllShipsSunk,
@@ -31,25 +33,44 @@ const DIFFICULTY_LABELS: Record<Difficulty, string> = {
   hard: 'Hard - Battleship Admiral'
 };
 
+// Long enough that the turn change reads as deliberate, short enough that it
+// never feels like waiting. The jitter keeps it from feeling mechanical.
+const AI_THINK_MIN_MS = 280;
+const AI_THINK_JITTER_MS = 220;
+
+const firstShip = (): Ship => ({
+  ...SHIP_CONFIGS[0],
+  positions: [],
+  hits: 0,
+  isSunk: false,
+});
+
 function App() {
   const [gameState, setGameState] = useState<GameState>(() => ({
     phase: 'setup',
     playerBoard: createEmptyBoard(),
     aiBoard: createEmptyBoard(),
     currentTurn: 'player',
-    selectedShip: null,
+    // Pre-selected so the grid is immediately clickable — otherwise the first
+    // click on the board silently does nothing and manual placement looks broken.
+    selectedShip: firstShip(),
     shipOrientation: 'horizontal',
     winner: null,
     difficulty: 'medium',
   }));
 
   const [aiState, setAIState] = useState(createInitialAIState());
-  const [isAIThinking, setIsAIThinking] = useState(false);
+  // A ref, not state: this only guards against scheduling two AI turns at once
+  // and is never rendered. As state it would be an effect dependency, so
+  // setting it would re-run the effect and the cleanup would cancel the
+  // pending turn before it fired.
+  const aiTurnScheduled = useRef(false);
   const [lastPlayerShot, setLastPlayerShot] = useState<Position | null>(null);
   const [lastAIShot, setLastAIShot] = useState<Position | null>(null);
   const [boardShake, setBoardShake] = useState(false);
   const [sfxEnabled, setSfxEnabled] = useState(true);
   const [sunkShipName, setSunkShipName] = useState<string | null>(null);
+  const [hoverCell, setHoverCell] = useState<Position | null>(null);
 
   const setSound = (enabled: boolean) => {
     setSfxEnabled(enabled);
@@ -63,13 +84,14 @@ function App() {
       playerBoard: createEmptyBoard(),
       aiBoard: createEmptyBoard(),
       currentTurn: 'player',
-      selectedShip: null,
+      selectedShip: firstShip(),
       shipOrientation: 'horizontal',
       winner: null,
       difficulty: prev.difficulty,
     }));
     setAIState(createInitialAIState());
-    setIsAIThinking(false);
+    aiTurnScheduled.current = false;
+    setHoverCell(null);
     setLastPlayerShot(null);
     setLastAIShot(null);
     setBoardShake(false);
@@ -89,6 +111,17 @@ function App() {
     soundManager.playClick();
   };
 
+  // Lift a placed ship back off the grid and hold it ready to re-place.
+  const handleShipRemove = (shipId: string) => {
+    const config = SHIP_CONFIGS.find(c => c.id === shipId);
+    setGameState(prev => ({
+      ...prev,
+      playerBoard: removeShipFromBoard(prev.playerBoard, shipId),
+      selectedShip: config ? { ...config, positions: [], hits: 0, isSunk: false } : prev.selectedShip,
+    }));
+    soundManager.playClick();
+  };
+
   // Toggle ship orientation
   const toggleOrientation = () => {
     setGameState(prev => ({ 
@@ -98,28 +131,39 @@ function App() {
     soundManager.playClick();
   };
 
+  // The next ship still waiting to be placed, so placing one rolls straight
+  // into the next without a trip back to the fleet list.
+  const nextUnplacedShip = (board: GameState['playerBoard'], justPlacedId: string): Ship | null => {
+    const config = SHIP_CONFIGS.find(
+      c => c.id !== justPlacedId && !board.ships.some(s => s.id === c.id)
+    );
+    return config ? { ...config, positions: [], hits: 0, isSunk: false } : null;
+  };
+
   // Handle cell click in setup phase
   const handleSetupCellClick = (row: number, col: number) => {
-    if (!gameState.selectedShip) return;
+    const { selectedShip, playerBoard, shipOrientation } = gameState;
 
-    const positions = getShipPositions(
-      row, 
-      col, 
-      gameState.selectedShip.size, 
-      gameState.shipOrientation
-    );
-
-    if (isValidPlacement(gameState.playerBoard, positions)) {
-      const newShip = createShip(gameState.selectedShip, positions);
-      const newBoard = placeShipOnBoard(gameState.playerBoard, newShip);
-      
-      setGameState(prev => ({
-        ...prev,
-        playerBoard: newBoard,
-        selectedShip: null,
-      }));
-      soundManager.playClick();
+    // Clicking an already-placed ship picks it back up.
+    if (!selectedShip) {
+      const shipId = playerBoard.cells[row][col].shipId;
+      if (shipId) handleShipRemove(shipId);
+      return;
     }
+
+    const positions = getShipPositions(row, col, selectedShip.size, shipOrientation);
+
+    if (!isValidPlacement(playerBoard, positions)) return;
+
+    const newShip = createShip(selectedShip, positions);
+    const newBoard = placeShipOnBoard(playerBoard, newShip);
+
+    setGameState(prev => ({
+      ...prev,
+      playerBoard: newBoard,
+      selectedShip: nextUnplacedShip(newBoard, selectedShip.id),
+    }));
+    soundManager.playClick();
   };
 
   // Randomize fleet placement
@@ -130,6 +174,18 @@ function App() {
       playerBoard: newBoard,
       selectedShip: null,
     }));
+    setHoverCell(null);
+    soundManager.playClick();
+  };
+
+  // Clear the grid and start placing from the first ship again.
+  const clearFleet = () => {
+    setGameState(prev => ({
+      ...prev,
+      playerBoard: createEmptyBoard(),
+      selectedShip: firstShip(),
+    }));
+    setHoverCell(null);
     soundManager.playClick();
   };
 
@@ -144,9 +200,21 @@ function App() {
       phase: 'combat',
       aiBoard,
       currentTurn: 'player',
+      selectedShip: null,
     }));
+    setHoverCell(null);
     soundManager.playClick();
   };
+
+  // R rotates the held ship — faster than reaching for the button mid-placement.
+  useEffect(() => {
+    if (gameState.phase !== 'setup') return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'r' || e.key === 'R') toggleOrientation();
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [gameState.phase]);
 
   // Handle player attack in combat phase
   const handlePlayerAttack = (row: number, col: number) => {
@@ -179,53 +247,78 @@ function App() {
 
   // AI turn effect
   useEffect(() => {
-    if (gameState.currentTurn === 'ai' && gameState.phase === 'combat' && !isAIThinking) {
-      setIsAIThinking(true);
-      setSunkShipName(null);
-      
-      const thinkingTime = Math.random() * 1000 + 500; // 500-1500ms
-      
-      const timer = setTimeout(() => {
-        const { newBoard, newAIState, shot, sunkShip } = aiTakeTurn(
-          gameState.playerBoard,
-          aiState,
-          gameState.difficulty
-        );
+    if (gameState.currentTurn !== 'ai' || gameState.phase !== 'combat') return;
+    if (aiTurnScheduled.current) return;
 
-        setLastAIShot(shot);
-        setSunkShipName(sunkShip);
+    aiTurnScheduled.current = true;
+    setSunkShipName(null);
 
-        const hit = newBoard.cells[shot.row][shot.col].state === 'hit';
-        if (hit) {
-          soundManager.playHit();
-          if (sunkShip) soundManager.playSunk();
-          setBoardShake(true);
-          setTimeout(() => setBoardShake(false), 300);
-        } else {
-          soundManager.playMiss();
-        }
+    const thinkingTime = AI_THINK_MIN_MS + Math.random() * AI_THINK_JITTER_MS;
 
-        const aiWon = areAllShipsSunk(newBoard);
+    const timer = setTimeout(() => {
+      const { newBoard, newAIState, shot, sunkShip } = aiTakeTurn(
+        gameState.playerBoard,
+        aiState,
+        gameState.difficulty
+      );
 
-        setGameState(prev => ({
-          ...prev,
-          playerBoard: newBoard,
-          currentTurn: 'player',
-          phase: aiWon ? 'gameover' : prev.phase,
-          winner: aiWon ? 'ai' : prev.winner,
-        }));
+      setLastAIShot(shot);
+      setSunkShipName(sunkShip);
 
-        setAIState(newAIState);
-        setIsAIThinking(false);
+      const hit = newBoard.cells[shot.row][shot.col].state === 'hit';
+      if (hit) {
+        soundManager.playHit();
+        if (sunkShip) soundManager.playSunk();
+        setBoardShake(true);
+        setTimeout(() => setBoardShake(false), 300);
+      } else {
+        soundManager.playMiss();
+      }
 
-        if (aiWon) soundManager.playLose();
-      }, thinkingTime);
+      const aiWon = areAllShipsSunk(newBoard);
 
-      return () => clearTimeout(timer);
-    }
-  }, [gameState.currentTurn, gameState.phase, gameState.difficulty, aiState, isAIThinking, gameState.playerBoard]);
+      setGameState(prev => ({
+        ...prev,
+        playerBoard: newBoard,
+        currentTurn: 'player',
+        phase: aiWon ? 'gameover' : prev.phase,
+        winner: aiWon ? 'ai' : prev.winner,
+      }));
 
-  const allShipsPlaced = gameState.playerBoard.ships.length === 5;
+      setAIState(newAIState);
+      aiTurnScheduled.current = false;
+
+      if (aiWon) soundManager.playLose();
+    }, thinkingTime);
+
+    return () => {
+      clearTimeout(timer);
+      aiTurnScheduled.current = false;
+    };
+  }, [gameState.currentTurn, gameState.phase, gameState.difficulty, aiState, gameState.playerBoard]);
+
+  const allShipsPlaced = gameState.playerBoard.ships.length === SHIP_CONFIGS.length;
+
+  // Ghost outline of where the held ship would land. Cells that fall off the
+  // grid are dropped from the preview, but the placement is still flagged
+  // invalid so the player sees red rather than a silently truncated ship.
+  const previewPositions =
+    gameState.phase === 'setup' && gameState.selectedShip && hoverCell
+      ? getShipPositions(
+          hoverCell.row,
+          hoverCell.col,
+          gameState.selectedShip.size,
+          gameState.shipOrientation
+        )
+      : [];
+
+  const previewValid =
+    previewPositions.length > 0 &&
+    isValidPlacement(gameState.playerBoard, previewPositions);
+
+  const onGrid = previewPositions.filter(
+    p => p.row >= 0 && p.row < 10 && p.col >= 0 && p.col < 10
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-steel-950 via-steel-900 to-steel-950 py-8 px-4">
@@ -267,6 +360,10 @@ function App() {
                 <p className="text-slate-200 text-sm sm:text-base drop-shadow">
                   "Place your fleet, sailor. The enemy is already at range."
                 </p>
+                <p className="text-slate-300 text-xs sm:text-sm mt-2 drop-shadow">
+                  Pick a ship, press <kbd className="px-1 py-0.5 bg-slate-800/80 rounded border border-slate-600">R</kbd> to rotate,
+                  then click the grid. Click a placed ship to move it — or hit Random.
+                </p>
               </div>
             </div>
 
@@ -276,10 +373,11 @@ function App() {
                 placedShips={gameState.playerBoard.ships}
                 selectedShip={gameState.selectedShip}
                 onShipSelect={handleShipSelect}
+                onShipRemove={handleShipRemove}
               />
 
               {/* Controls */}
-              <div className="bg-steel-900/90 border border-steel-700 p-4 rounded-lg shadow-xl space-y-4">
+              <div className="bg-steel-900/90 border border-steel-700 p-4 rounded-lg shadow-xl space-y-4 min-w-[15rem]">
                 <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-brass-300">
                   Controls
                 </h3>
@@ -308,23 +406,38 @@ function App() {
                   onClick={toggleOrientation}
                   className="w-full px-4 py-2 bg-steel-800 border border-steel-700 hover:bg-steel-700 hover:border-steel-600 rounded-md transition-colors text-steel-100"
                 >
-                  Orientation: {gameState.shipOrientation.toUpperCase()}
+                  ⟳ {gameState.shipOrientation === 'horizontal' ? 'Horizontal' : 'Vertical'}
+                  <span className="text-xs text-steel-400 ml-1">(R)</span>
                 </button>
 
-                <button
-                  onClick={randomizeFleet}
-                  className="w-full px-4 py-2 bg-steel-700 border border-steel-600 hover:bg-steel-600 hover:border-steel-500 text-steel-50 rounded-md transition-colors"
-                >
-                  🎲 Randomize Fleet
-                </button>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={randomizeFleet}
+                    className="px-3 py-2 text-sm bg-steel-700 border border-steel-600 hover:bg-steel-600 hover:border-steel-500 text-steel-50 rounded-md transition-colors"
+                  >
+                    🎲 Random
+                  </button>
+                  <button
+                    onClick={clearFleet}
+                    disabled={gameState.playerBoard.ships.length === 0}
+                    className="px-3 py-2 text-sm bg-steel-800 border border-steel-700 hover:bg-steel-700 text-steel-200 rounded-md transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    ↺ Clear
+                  </button>
+                </div>
 
-                {allShipsPlaced && (
+                {allShipsPlaced ? (
                   <button
                     onClick={startGame}
                     className="w-full px-4 py-2 bg-brass-500 hover:bg-brass-400 text-steel-950 rounded-md transition-colors font-semibold shadow-lg shadow-brass-500/20"
                   >
                     🚀 Start Game
                   </button>
+                ) : (
+                  <p className="text-xs text-steel-400 text-center pt-1">
+                    {SHIP_CONFIGS.length - gameState.playerBoard.ships.length} ship
+                    {SHIP_CONFIGS.length - gameState.playerBoard.ships.length === 1 ? '' : 's'} left to place
+                  </p>
                 )}
               </div>
 
@@ -333,9 +446,13 @@ function App() {
                 <Board
                   board={gameState.playerBoard}
                   onCellClick={handleSetupCellClick}
+                  onCellHover={(row, col) => setHoverCell({ row, col })}
+                  onLeave={() => setHoverCell(null)}
                   showShips={true}
                   disabled={false}
                   label="Your Board"
+                  previewPositions={onGrid}
+                  previewState={previewValid ? 'valid' : 'invalid'}
                 />
               </div>
             </div>
