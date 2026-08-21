@@ -4,11 +4,12 @@ A fully functional, web-based Battleship game built with React, TypeScript, Vite
 
 ## 🎮 Features
 
-- **Setup Phase**: Manually place your ships or use the "Randomize Fleet" button for quick setup
+- **Setup Phase**: Place ships by hand with a live validity preview, or hit Randomize Fleet
 - **Combat Phase**: Turn-based gameplay with visual feedback for hits and misses
 - **Intelligent AI**: Two-mode firing algorithm (Hunt Mode + Target Mode)
 - **Three Difficulty Levels**: Easy, Medium, and Hard, each with a distinct firing strategy
 - **Sound Effects**: Explosions, splashes, and win/loss stings, synthesized in-browser with no audio files
+- **Original Score**: Procedural minor-key naval hymn for choir, brass and timpani, generated at runtime
 - **Animations**: Explosion and splash effects on the last shot, plus screen shake when you take a hit
 - **Responsive Design**: Works on desktop and mobile devices
 - **Visual Feedback**: Distinct colors and icons for different game states
@@ -83,16 +84,19 @@ This project is ready to be deployed to Vercel, Netlify, or any static hosting s
 
 ### Game Controls
 - **Setup Phase**:
-  - Click a ship from the selector to choose it
-  - Toggle orientation (horizontal/vertical)
-  - Click on the board to place the ship
-  - Use "Randomize Fleet" for automatic placement
-  - Click "Start Game" when all ships are placed
+  - The first ship is pre-selected; pick a different one from the fleet list at any time
+  - Hover the grid to preview the placement — brass means legal, red means illegal
+  - Press <kbd>R</kbd> (or use the orientation button) to rotate
+  - Click the grid to place; the next unplaced ship is selected automatically
+  - Click an already-placed ship to lift it back off and move it
+  - **Randomize** fills the whole fleet, **Clear** empties the grid
+  - Pick a difficulty, then click "Start Game" once all five ships are down
 
 - **Combat Phase**:
   - Click on AI's board to fire
   - Wait for AI to take its turn
   - Game ends when all ships of one fleet are sunk
+  - Toggle effects (🔊) and music (♫) next to the title
 
 ## 🤖 AI Logic
 
@@ -128,18 +132,54 @@ Difficulty is selected during the Setup Phase and changes how the AI fires:
 
 ## 🔊 Sound & Animation
 
-Sound effects are synthesized at runtime with the Web Audio API (`src/sound.ts`)
-rather than shipped as audio files, so they add nothing to the bundle size:
+All audio is synthesized at runtime with the Web Audio API rather than shipped as
+audio files. Sound effects and music share a single `AudioContext` (`src/audio.ts`)
+— two contexts would drift apart in time, and browsers cap how many a page may
+create.
+
+### Sound effects (`src/sound.ts`)
 
 - **Hit**: low-pass filtered noise burst plus a descending sawtooth boom
 - **Miss**: high-pass filtered noise burst plus a short sine splash
 - **Ship sunk**: longer, louder explosion with a descending siren
 - **Win / Lose**: ascending major arpeggio / descending minor run
 
-Sound can be muted with the speaker button next to the title.
+### Music (`src/music.ts`)
 
-Animations are CSS keyframes defined in `src/index.css` and applied only to the
-most recent shot, so the rest of the board does not re-animate on every turn:
+An original procedural score in the vein of a Cold War submarine picture — a slow
+minor hymn for male-choir pad, low brass, sub pedal and timpani. It is generated
+from scratch, so the entire soundtrack costs about 5KB gzipped and no copyrighted
+audio is shipped or streamed.
+
+| Layer | Synthesis |
+|---|---|
+| Choir | Three detuned sawtooths per voice through a low-pass plus two *peaking formant filters* (720Hz, 1180Hz). The formants are what make it read as an "ahh" vowel rather than a synth buzz. |
+| Low brass | Sawtooth pair with a filter that sweeps open then closes across each note; the swelling filter is what sells "brass". |
+| Sub pedal | Sine for weight plus a filtered saw for growl. |
+| Timpani | Sine dropping 110Hz→46Hz with a short noise thwack. |
+
+Harmonically it is 54 BPM in D aeolian, i–VI–III–VII (Dm–B♭–F–C), on a
+35.6-second loop. The flat VI and VII are deliberate — a raised leading tone
+would make it sound Western rather than modal. The brass line enters at bar 3 so
+the loop opens as atmosphere before stating a theme.
+
+Two details worth knowing before editing it:
+
+- **Notes are scheduled ahead against the audio clock**, not fired from
+  `setInterval`. A timer only decides *when to schedule*; the `AudioContext`
+  clock decides when notes sound. Without this the music stutters whenever the
+  main thread is busy re-rendering the board.
+- **Playback starts on entering the Combat Phase**, which is always downstream of
+  a click. Browsers keep the `AudioContext` suspended until the page sees a
+  gesture, so this satisfies autoplay policy without a separate "enable audio"
+  prompt.
+
+Effects and music have independent toggles (🔊 and ♫) next to the title.
+
+### Animations
+
+CSS keyframes defined in `src/index.css`, applied only to the most recent shot so
+the rest of the board does not re-animate on every turn:
 
 - `animate-explode` — scale-up pop on a hit
 - `animate-splash` — expanding ring on a miss
@@ -157,7 +197,9 @@ battleship-game/
 │   │   └── ShipSelector.tsx   # Ship selection interface
 │   ├── aiLogic.ts             # AI opponent logic (hunt/target, difficulty)
 │   ├── gameLogic.ts           # Core game mechanics
+│   ├── audio.ts               # Shared AudioContext, noise buffers, note→freq
 │   ├── sound.ts               # Web Audio API sound effects
+│   ├── music.ts               # Procedural background score
 │   ├── types.ts               # TypeScript type definitions
 │   ├── App.tsx                # Main application component
 │   ├── main.tsx               # Application entry point
@@ -230,12 +272,18 @@ Feel free to submit issues, fork the repository, and create pull requests for an
 
 Potential features for future versions:
 - Multiplayer support
-- Ship placement validation improvements
 - Statistics tracking (win/loss record, accuracy)
 - Achievements and win streaks
 - Different board sizes
 - Special weapons/power-ups
-- Background music
+- Music that reacts to the state of the game (intensifying as your fleet is lost)
+
+### Known technical debt
+- `noUnusedLocals` / `noUnusedParameters` are currently disabled in
+  `tsconfig.app.json`. They were turned off to get an early build green, and that
+  masked the accidental deletion of live code. Worth re-enabling.
+- There is no test runner. The game logic, AI loop and score have all been
+  validated with throwaway scripts; adding Vitest would make those permanent.
 
 ---
 
