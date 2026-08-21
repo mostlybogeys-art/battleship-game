@@ -7,6 +7,9 @@ A fully functional, web-based Battleship game built with React, TypeScript, Vite
 - **Setup Phase**: Manually place your ships or use the "Randomize Fleet" button for quick setup
 - **Combat Phase**: Turn-based gameplay with visual feedback for hits and misses
 - **Intelligent AI**: Two-mode firing algorithm (Hunt Mode + Target Mode)
+- **Three Difficulty Levels**: Easy, Medium, and Hard, each with a distinct firing strategy
+- **Sound Effects**: Explosions, splashes, and win/loss stings, synthesized in-browser with no audio files
+- **Animations**: Explosion and splash effects on the last shot, plus screen shake when you take a hit
 - **Responsive Design**: Works on desktop and mobile devices
 - **Visual Feedback**: Distinct colors and icons for different game states
 - **Game Over Modal**: Clear winner declaration with play again functionality
@@ -113,6 +116,36 @@ The AI opponent uses a sophisticated two-mode firing algorithm:
 - **Directional Logic**: Tries opposite direction if initial direction fails
 - **Ship Tracking**: Knows when a ship is sunk and resets targeting strategy
 
+### Difficulty Levels
+
+Difficulty is selected during the Setup Phase and changes how the AI fires:
+
+| Level | Behaviour |
+|---|---|
+| **Easy** | Resets to Hunt Mode every turn, so it never follows up on a hit. Shots are effectively blind. |
+| **Medium** | Full Hunt/Target algorithm described above. |
+| **Hard** | Hunt shots are biased to a checkerboard (`(row + col) % 2 === 0`). Since the smallest ship occupies 2 cells, a checkerboard sweep cannot miss any ship, so it finds the fleet in roughly half the shots. |
+
+## 🔊 Sound & Animation
+
+Sound effects are synthesized at runtime with the Web Audio API (`src/sound.ts`)
+rather than shipped as audio files, so they add nothing to the bundle size:
+
+- **Hit**: low-pass filtered noise burst plus a descending sawtooth boom
+- **Miss**: high-pass filtered noise burst plus a short sine splash
+- **Ship sunk**: longer, louder explosion with a descending siren
+- **Win / Lose**: ascending major arpeggio / descending minor run
+
+Sound can be muted with the speaker button next to the title.
+
+Animations are CSS keyframes defined in `src/index.css` and applied only to the
+most recent shot, so the rest of the board does not re-animate on every turn:
+
+- `animate-explode` — scale-up pop on a hit
+- `animate-splash` — expanding ring on a miss
+- `animate-shake` — the player's board shakes when the AI lands a hit
+- `animate-pop` — the "ship sunk" banner
+
 ## 📁 Project Structure
 
 ```
@@ -122,12 +155,13 @@ battleship-game/
 │   │   ├── Board.tsx          # Main game board component
 │   │   ├── Cell.tsx           # Individual cell component
 │   │   └── ShipSelector.tsx   # Ship selection interface
-│   ├── aiLogic.ts             # AI opponent logic
+│   ├── aiLogic.ts             # AI opponent logic (hunt/target, difficulty)
 │   ├── gameLogic.ts           # Core game mechanics
+│   ├── sound.ts               # Web Audio API sound effects
 │   ├── types.ts               # TypeScript type definitions
 │   ├── App.tsx                # Main application component
 │   ├── main.tsx               # Application entry point
-│   └── index.css              # Tailwind CSS imports
+│   └── index.css              # Tailwind directives + animation keyframes
 ├── public/                    # Static assets
 ├── index.html                 # HTML template
 ├── package.json               # Dependencies
@@ -196,12 +230,12 @@ Feel free to submit issues, fork the repository, and create pull requests for an
 
 Potential features for future versions:
 - Multiplayer support
-- Different AI difficulty levels
 - Ship placement validation improvements
-- Sound effects and animations
-- Statistics tracking
+- Statistics tracking (win/loss record, accuracy)
+- Achievements and win streaks
 - Different board sizes
 - Special weapons/power-ups
+- Background music
 
 ---
 
