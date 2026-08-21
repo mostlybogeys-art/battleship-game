@@ -1,6 +1,5 @@
-import React from 'react';
 import { Cell } from './Cell';
-import { Board as BoardType, CellState } from '../types';
+import { Board as BoardType, CellState, Position } from '../types';
 
 interface BoardProps {
   board: BoardType;
@@ -8,15 +7,19 @@ interface BoardProps {
   showShips?: boolean;
   disabled?: boolean;
   label?: string;
+  lastShot?: Position | null;
+  shake?: boolean;
 }
 
-export const Board: React.FC<BoardProps> = ({ 
+export const Board = ({ 
   board, 
   onCellClick, 
   showShips = true, 
   disabled = false,
-  label 
-}) => {
+  label,
+  lastShot,
+  shake,
+}: BoardProps) => {
   const getCellState = (row: number, col: number): CellState => {
     const cell = board.cells[row][col];
     
@@ -31,8 +34,11 @@ export const Board: React.FC<BoardProps> = ({
     return 'empty';
   };
 
+  const isLastShot = (row: number, col: number) =>
+    lastShot !== null && lastShot !== undefined && lastShot.row === row && lastShot.col === col;
+
   return (
-    <div className="flex flex-col items-center">
+    <div className={`flex flex-col items-center ${shake ? 'animate-shake' : ''}`}>
       {label && (
         <h3 className="text-sm font-semibold uppercase tracking-[0.15em] mb-2 text-brass-300">
           {label}
@@ -58,14 +64,20 @@ export const Board: React.FC<BoardProps> = ({
             </div>
             
             {/* Cells */}
-            {row.map((_cell, colIndex) => (
-              <Cell
-                key={`${rowIndex}-${colIndex}`}
-                state={getCellState(rowIndex, colIndex)}
-                onClick={() => onCellClick?.(rowIndex, colIndex)}
-                disabled={disabled || !onCellClick}
-              />
-            ))}
+            {row.map((_cell, colIndex) => {
+              const state = getCellState(rowIndex, colIndex);
+              const isShot = isLastShot(rowIndex, colIndex);
+              return (
+                <Cell
+                  key={`${rowIndex}-${colIndex}`}
+                  state={state}
+                  onClick={() => onCellClick?.(rowIndex, colIndex)}
+                  disabled={disabled || !onCellClick}
+                  justHit={isShot && state === 'hit'}
+                  justMissed={isShot && state === 'miss'}
+                />
+              );
+            })}
           </div>
         ))}
       </div>

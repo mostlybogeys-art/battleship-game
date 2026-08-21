@@ -3,7 +3,9 @@ import { Board } from './components/Board';
 import { ShipSelector } from './components/ShipSelector';
 import { 
   GameState, 
-  Ship 
+  Ship,
+  Position,
+  Difficulty
 } from './types';
 import { 
   createEmptyBoard, 
@@ -20,7 +22,14 @@ import {
   createInitialAIState,
   aiTakeTurn
 } from './aiLogic';
+import { soundManager } from './sound';
 import captainImg from './assets/captain.jpg';
+
+const DIFFICULTY_LABELS: Record<Difficulty, string> = {
+  easy: 'Easy - Random Rookie',
+  medium: 'Medium - Hunt Captain',
+  hard: 'Hard - Battleship Admiral'
+};
 
 function App() {
   const [gameState, setGameState] = useState<GameState>(() => ({
@@ -31,15 +40,25 @@ function App() {
     selectedShip: null,
     shipOrientation: 'horizontal',
     winner: null,
+    difficulty: 'medium',
   }));
 
   const [aiState, setAIState] = useState(createInitialAIState());
-
   const [isAIThinking, setIsAIThinking] = useState(false);
+  const [lastPlayerShot, setLastPlayerShot] = useState<Position | null>(null);
+  const [lastAIShot, setLastAIShot] = useState<Position | null>(null);
+  const [boardShake, setBoardShake] = useState(false);
+  const [sfxEnabled, setSfxEnabled] = useState(true);
+  const [sunkShipName, setSunkShipName] = useState<string | null>(null);
+
+  const setSound = (enabled: boolean) => {
+    setSfxEnabled(enabled);
+    soundManager.setEnabled(enabled);
+  };
 
   // Reset game
   const resetGame = () => {
-    setGameState({
+    setGameState(prev => ({
       phase: 'setup',
       playerBoard: createEmptyBoard(),
       aiBoard: createEmptyBoard(),
@@ -47,14 +66,27 @@ function App() {
       selectedShip: null,
       shipOrientation: 'horizontal',
       winner: null,
-    });
+      difficulty: prev.difficulty,
+    }));
     setAIState(createInitialAIState());
     setIsAIThinking(false);
+    setLastPlayerShot(null);
+    setLastAIShot(null);
+    setBoardShake(false);
+    setSunkShipName(null);
+    soundManager.playClick();
+  };
+
+  // Handle difficulty change
+  const setDifficulty = (difficulty: Difficulty) => {
+    setGameState(prev => ({ ...prev, difficulty }));
+    soundManager.playClick();
   };
 
   // Handle ship selection in setup phase
   const handleShipSelect = (ship: Ship) => {
     setGameState(prev => ({ ...prev, selectedShip: ship }));
+    soundManager.playClick();
   };
 
   // Toggle ship orientation
@@ -63,6 +95,7 @@ function App() {
       ...prev, 
       shipOrientation: prev.shipOrientation === 'horizontal' ? 'vertical' : 'horizontal' 
     }));
+    soundManager.playClick();
   };
 
   // Handle cell click in setup phase
@@ -85,6 +118,7 @@ function App() {
         playerBoard: newBoard,
         selectedShip: null,
       }));
+      soundManager.playClick();
     }
   };
 
@@ -96,13 +130,13 @@ function App() {
       playerBoard: newBoard,
       selectedShip: null,
     }));
+    soundManager.playClick();
   };
 
   // Start game (transition to combat phase)
   const startGame = () => {
     if (gameState.playerBoard.ships.length !== 5) return;
 
-    // Place AI ships randomly
     const aiBoard = placeAllShipsRandomly();
     
     setGameState(prev => ({
@@ -111,6 +145,7 @@ function App() {
       aiBoard,
       currentTurn: 'player',
     }));
+    soundManager.playClick();
   };
 
   // Handle player attack in combat phase
@@ -118,64 +153,99 @@ function App() {
     if (gameState.currentTurn !== 'player' || gameState.phase !== 'combat') return;
     if (!isValidAttack(gameState.aiBoard, row, col)) return;
 
-    const newAIBoard = performAttack(gameState.aiBoard, row, col);
+    setLastPlayerShot({ row, col });
+    const { board: newAIBoard, hit, sunkShip } = performAttack(gameState.aiBoard, row, col);
+
+    setSunkShipName(sunkShip);
+    if (hit) {
+      soundManager.playHit();
+      if (sunkShip) soundManager.playSunk();
+    } else {
+      soundManager.playMiss();
+    }
     
+    const playerWon = areAllShipsSunk(newAIBoard);
+
     setGameState(prev => ({
       ...prev,
       aiBoard: newAIBoard,
-      currentTurn: 'ai',
+      currentTurn: playerWon ? prev.currentTurn : 'ai',
+      phase: playerWon ? 'gameover' : prev.phase,
+      winner: playerWon ? 'player' : prev.winner,
     }));
 
-    // Check for win
-    if (areAllShipsSunk(newAIBoard)) {
-      setGameState(prev => ({
-        ...prev,
-        phase: 'gameover',
-        winner: 'player',
-      }));
-    }
+    if (playerWon) soundManager.playWin();
   };
 
   // AI turn effect
   useEffect(() => {
     if (gameState.currentTurn === 'ai' && gameState.phase === 'combat' && !isAIThinking) {
       setIsAIThinking(true);
+      setSunkShipName(null);
       
-      // Simulate AI thinking time
       const thinkingTime = Math.random() * 1000 + 500; // 500-1500ms
       
-      setTimeout(() => {
-        const { newBoard, newAIState } = aiTakeTurn(gameState.playerBoard, aiState);
-        
+      const timer = setTimeout(() => {
+        const { newBoard, newAIState, shot, sunkShip } = aiTakeTurn(
+          gameState.playerBoard,
+          aiState,
+          gameState.difficulty
+        );
+
+        setLastAIShot(shot);
+        setSunkShipName(sunkShip);
+
+        const hit = newBoard.cells[shot.row][shot.col].state === 'hit';
+        if (hit) {
+          soundManager.playHit();
+          if (sunkShip) soundManager.playSunk();
+          setBoardShake(true);
+          setTimeout(() => setBoardShake(false), 300);
+        } else {
+          soundManager.playMiss();
+        }
+
+        const aiWon = areAllShipsSunk(newBoard);
+
         setGameState(prev => ({
           ...prev,
           playerBoard: newBoard,
           currentTurn: 'player',
+          phase: aiWon ? 'gameover' : prev.phase,
+          winner: aiWon ? 'ai' : prev.winner,
         }));
-        
+
         setAIState(newAIState);
         setIsAIThinking(false);
 
-        // Check for AI win
-        if (areAllShipsSunk(newBoard)) {
-          setGameState(prev => ({
-            ...prev,
-            phase: 'gameover',
-            winner: 'ai',
-          }));
-        }
+        if (aiWon) soundManager.playLose();
       }, thinkingTime);
+
+      return () => clearTimeout(timer);
     }
-  }, [gameState.currentTurn, gameState.phase, aiState, isAIThinking, gameState.playerBoard]);
+  }, [gameState.currentTurn, gameState.phase, gameState.difficulty, aiState, isAIThinking, gameState.playerBoard]);
 
   const allShipsPlaced = gameState.playerBoard.ships.length === 5;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-steel-950 via-steel-900 to-steel-950 py-8 px-4">
       <div className="max-w-6xl mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8 text-steel-50 tracking-wide">
-          <span className="text-brass-400">⚓</span> Battleship
-        </h1>
+        <div className="flex items-center justify-center gap-4 mb-8">
+          <h1 className="text-4xl font-bold text-steel-50 tracking-wide">
+            <span className="text-brass-400">⚓</span> Battleship
+          </h1>
+          <button
+            onClick={() => setSound(!sfxEnabled)}
+            aria-label={sfxEnabled ? 'Mute sound effects' : 'Unmute sound effects'}
+            className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+              sfxEnabled
+                ? 'bg-brass-500/15 border-brass-500/50 text-brass-300'
+                : 'bg-steel-800 border-steel-700 text-steel-400'
+            }`}
+          >
+            {sfxEnabled ? '🔊' : '🔇'}
+          </button>
+        </div>
 
         {gameState.phase === 'setup' && (
           <div className="space-y-6">
@@ -213,6 +283,26 @@ function App() {
                 <h3 className="text-sm font-semibold uppercase tracking-[0.15em] text-brass-300">
                   Controls
                 </h3>
+
+                {/* Difficulty selector */}
+                <div className="space-y-2">
+                  <label className="text-xs text-steel-400 uppercase tracking-wider">Difficulty</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {(['easy', 'medium', 'hard'] as Difficulty[]).map(diff => (
+                      <button
+                        key={diff}
+                        onClick={() => setDifficulty(diff)}
+                        className={`px-2 py-2 text-xs rounded border transition-colors ${
+                          gameState.difficulty === diff
+                            ? 'bg-brass-500 border-brass-400 text-steel-950 font-semibold'
+                            : 'bg-steel-800 border-steel-700 hover:bg-steel-700 text-steel-200'
+                        }`}
+                      >
+                        {diff.charAt(0).toUpperCase() + diff.slice(1)}
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
                 <button
                   onClick={toggleOrientation}
@@ -254,6 +344,22 @@ function App() {
 
         {gameState.phase === 'combat' && (
           <div className="space-y-6">
+            {/* Difficulty badge */}
+            <div className="text-center">
+              <span className="text-steel-400 text-sm">
+                Admiral: <span className="text-brass-300">{DIFFICULTY_LABELS[gameState.difficulty]}</span>
+              </span>
+            </div>
+
+            {/* Sunk ship notification */}
+            {sunkShipName && (
+              <div className="text-center">
+                <div className="inline-block px-6 py-2 bg-ember-600/20 border border-ember-500/50 text-ember-300 rounded-full animate-pop font-semibold">
+                  💥 {sunkShipName} sunk!
+                </div>
+              </div>
+            )}
+
             {/* Status Indicator */}
             <div className="text-center">
               <div className={`inline-block px-6 py-3 rounded-full text-lg font-semibold border ${
@@ -272,6 +378,8 @@ function App() {
                 showShips={true}
                 disabled={true}
                 label="Your Board"
+                lastShot={lastAIShot}
+                shake={boardShake}
               />
 
               <Board
@@ -280,6 +388,7 @@ function App() {
                 showShips={false}
                 disabled={gameState.currentTurn !== 'player'}
                 label="AI Board (Click to Attack)"
+                lastShot={lastPlayerShot}
               />
             </div>
 

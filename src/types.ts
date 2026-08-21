@@ -2,6 +2,7 @@ export type CellState = 'empty' | 'ship' | 'hit' | 'miss';
 export type Orientation = 'horizontal' | 'vertical';
 export type GamePhase = 'setup' | 'combat' | 'gameover';
 export type Turn = 'player' | 'ai';
+export type Difficulty = 'easy' | 'medium' | 'hard';
 
 export interface Position {
   row: number;
@@ -35,6 +36,7 @@ export interface GameState {
   selectedShip: Ship | null;
   shipOrientation: Orientation;
   winner: Turn | null;
+  difficulty: Difficulty;
 }
 
 export const SHIP_CONFIGS = [

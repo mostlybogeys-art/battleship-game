@@ -1,4 +1,4 @@
-import { Board, Position, BOARD_SIZE } from './types';
+import { Board, Position, BOARD_SIZE, Difficulty } from './types';
 
 export type AIMode = 'hunt' | 'target';
 
@@ -63,7 +63,11 @@ export const getDirectionalPosition = (pos: Position, direction: 'north' | 'sout
   }
 };
 
-export const getRandomValidShot = (_board: Board, previousShots: Set<string>): Position => {
+export const getRandomValidShot = (
+  _board: Board,
+  previousShots: Set<string>,
+  difficulty: Difficulty = 'medium'
+): Position => {
   const availablePositions: Position[] = [];
   
   for (let row = 0; row < BOARD_SIZE; row++) {
@@ -79,10 +83,24 @@ export const getRandomValidShot = (_board: Board, previousShots: Set<string>): P
     throw new Error('No available positions to shoot');
   }
   
+  // Hard mode: prefer checkerboard pattern for more efficient coverage
+  if (difficulty === 'hard') {
+    const checkerboard = availablePositions.filter(pos => (pos.row + pos.col) % 2 === 0);
+    if (checkerboard.length > 0) {
+      // Shuffle to avoid predictable patterns but keep checkerboard bias
+      const shuffled = [...checkerboard].sort(() => Math.random() - 0.5);
+      return shuffled[0];
+    }
+  }
+  
   return availablePositions[Math.floor(Math.random() * availablePositions.length)];
 };
 
-export const aiTakeTurn = (board: Board, aiState: AIState): { newBoard: Board; newAIState: AIState } => {
+export const aiTakeTurn = (
+  board: Board,
+  aiState: AIState,
+  difficulty: Difficulty = 'medium'
+): { newBoard: Board; newAIState: AIState; shot: Position; sunkShip: string | null } => {
   let targetPosition: Position;
   // targetQueue is shifted below, so it must be a fresh array — spreading
   // aiState alone would leave it aliased to the previous state's queue.
@@ -98,9 +116,19 @@ export const aiTakeTurn = (board: Board, aiState: AIState): { newBoard: Board; n
     pos => !newAIState.previousShots.has(positionToString(pos))
   );
 
+  // Easy never follows up on a hit — it fires blind every turn, which is what
+  // makes it beatable. Medium and hard both use hunt/target.
+  if (difficulty === 'easy') {
+    newAIState.mode = 'hunt';
+    newAIState.targetQueue = [];
+    newAIState.lastHit = null;
+    newAIState.currentDirection = null;
+    newAIState.originalHit = null;
+  }
+
   if (newAIState.mode === 'hunt') {
     // Hunt mode: random valid position
-    targetPosition = getRandomValidShot(board, newAIState.previousShots);
+    targetPosition = getRandomValidShot(board, newAIState.previousShots, difficulty);
   } else {
     // Target mode: use target queue or continue in current direction
     if (newAIState.targetQueue.length > 0) {
@@ -120,22 +148,29 @@ export const aiTakeTurn = (board: Board, aiState: AIState): { newBoard: Board; n
         } else {
           // Fall back to hunt mode
           newAIState.mode = 'hunt';
-          targetPosition = getRandomValidShot(board, newAIState.previousShots);
+          targetPosition = getRandomValidShot(board, newAIState.previousShots, difficulty);
         }
       }
     } else {
       // No valid target, fall back to hunt mode
       newAIState.mode = 'hunt';
-      targetPosition = getRandomValidShot(board, newAIState.previousShots);
+      targetPosition = getRandomValidShot(board, newAIState.previousShots, difficulty);
     }
   }
   
   // Record the shot
   newAIState.previousShots.add(positionToString(targetPosition));
   
-  // Perform the attack
-  const newBoard = { ...board, cells: board.cells.map(row => [...row]), ships: board.ships.map(ship => ({ ...ship })) };
+  // Perform the attack. Cells must be cloned individually — a `[...row]` copy
+  // shares the cell objects with `board`, so mutating one would rewrite the
+  // caller's previous state in place.
+  const newBoard = {
+    ...board,
+    cells: board.cells.map(row => row.map(cell => ({ ...cell }))),
+    ships: board.ships.map(ship => ({ ...ship })),
+  };
   const cell = newBoard.cells[targetPosition.row][targetPosition.col];
+  let sunkShip: string | null = null;
   
   if (cell.state === 'ship') {
     // Hit!
@@ -145,6 +180,7 @@ export const aiTakeTurn = (board: Board, aiState: AIState): { newBoard: Board; n
       ship.hits += 1;
       if (ship.hits >= ship.size) {
         ship.isSunk = true;
+        sunkShip = ship.name;
         // Ship sunk, return to hunt mode
         newAIState.mode = 'hunt';
         newAIState.targetQueue = [];
@@ -223,7 +259,7 @@ export const aiTakeTurn = (board: Board, aiState: AIState): { newBoard: Board; n
     }
   }
   
-  return { newBoard, newAIState };
+  return { newBoard, newAIState, shot: targetPosition, sunkShip };
 };
 
 const getOppositeDirection = (direction: 'north' | 'south' | 'east' | 'west'): 'north' | 'south' | 'east' | 'west' => {

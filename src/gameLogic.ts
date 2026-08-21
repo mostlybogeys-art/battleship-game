@@ -75,24 +75,39 @@ export const isValidAttack = (board: Board, row: number, col: number): boolean =
   return cell.state !== 'hit' && cell.state !== 'miss';
 };
 
-export const performAttack = (board: Board, row: number, col: number): Board => {
-  const newBoard = { ...board, cells: board.cells.map(row => [...row]), ships: board.ships.map(ship => ({ ...ship })) };
+export const performAttack = (
+  board: Board,
+  row: number,
+  col: number
+): { board: Board; hit: boolean; sunkShip: string | null } => {
+  // Cells must be cloned individually — a `[...row]` copy shares the cell
+  // objects with `board`, so mutating one would rewrite the caller's previous
+  // state in place.
+  const newBoard = {
+    ...board,
+    cells: board.cells.map(r => r.map(cell => ({ ...cell }))),
+    ships: board.ships.map(ship => ({ ...ship })),
+  };
   const cell = newBoard.cells[row][col];
+  let sunkShip: string | null = null;
+  let hit = false;
   
   if (cell.state === 'ship' && cell.shipId) {
     cell.state = 'hit';
+    hit = true;
     const ship = newBoard.ships.find(s => s.id === cell.shipId);
     if (ship) {
       ship.hits += 1;
       if (ship.hits >= ship.size) {
         ship.isSunk = true;
+        sunkShip = ship.name;
       }
     }
   } else {
     cell.state = 'miss';
   }
   
-  return newBoard;
+  return { board: newBoard, hit, sunkShip };
 };
 
 export const areAllShipsSunk = (board: Board): boolean => {

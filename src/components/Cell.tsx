@@ -1,4 +1,3 @@
-import React from 'react';
 import { CellState } from '../types';
 
 interface CellProps {
@@ -6,32 +5,45 @@ interface CellProps {
   isPreview?: boolean;
   onClick?: () => void;
   disabled?: boolean;
+  animate?: boolean;
+  justHit?: boolean;
+  justMissed?: boolean;
 }
 
-export const Cell: React.FC<CellProps> = ({ state, isPreview, onClick, disabled }) => {
+export const Cell = ({
+  state,
+  isPreview,
+  onClick,
+  disabled,
+  animate,
+  justHit,
+  justMissed,
+}: CellProps) => {
   const getCellStyles = () => {
     const baseStyles =
-      'w-8 h-8 sm:w-10 sm:h-10 border border-steel-700/60 flex items-center justify-center transition-all duration-200';
+      'w-8 h-8 sm:w-10 sm:h-10 border border-steel-700/60 flex items-center justify-center';
 
-    // `disabled` only removes the affordance to click — it must never hide the
-    // cell's actual state, or the board turns into an unreadable grey slab.
+    const animation = animate
+      ? 'transition-all duration-200'
+      : '';
+
     const interaction = disabled
       ? 'cursor-not-allowed'
       : 'cursor-pointer';
 
     switch (state) {
       case 'empty':
-        return `${baseStyles} ${interaction} bg-steel-800 ${
+        return `${baseStyles} ${animation} ${interaction} bg-steel-800 ${
           disabled ? '' : 'hover:bg-steel-600 hover:ring-1 hover:ring-inset hover:ring-brass-400/60'
         }`;
       case 'ship':
-        return `${baseStyles} ${interaction} bg-steel-300 ${disabled ? '' : 'hover:bg-steel-200'}`;
+        return `${baseStyles} ${animation} ${interaction} bg-steel-300 ${disabled ? '' : 'hover:bg-steel-200'}`;
       case 'hit':
-        return `${baseStyles} cursor-not-allowed bg-ember-600 shadow-[inset_0_0_10px_rgba(255,157,77,0.7)]`;
+        return `${baseStyles} ${justHit ? 'animate-explode' : ''} cursor-not-allowed bg-ember-600 shadow-[inset_0_0_10px_rgba(255,157,77,0.7)]`;
       case 'miss':
-        return `${baseStyles} cursor-not-allowed bg-steel-900`;
+        return `${baseStyles} ${justMissed ? 'animate-splash' : ''} cursor-not-allowed bg-steel-900`;
       default:
-        return `${baseStyles} ${interaction}`;
+        return `${baseStyles} ${animation} ${interaction}`;
     }
   };
 

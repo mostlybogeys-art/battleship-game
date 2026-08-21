@@ -1,4 +1,3 @@
-import React from 'react';
 import { Ship as ShipType, SHIP_CONFIGS } from '../types';
 
 interface ShipSelectorProps {
@@ -7,11 +6,11 @@ interface ShipSelectorProps {
   onShipSelect: (ship: ShipType) => void;
 }
 
-export const ShipSelector: React.FC<ShipSelectorProps> = ({ 
+export const ShipSelector = ({ 
   placedShips, 
   selectedShip, 
   onShipSelect 
-}) => {
+}: ShipSelectorProps) => {
   const unplacedShips = SHIP_CONFIGS.filter(
     config => !placedShips.some(ship => ship.id === config.id)
   );
